@@ -1,0 +1,17 @@
+<svg width="700" height="300" xmlns="http://www.w3.org/2000/svg" style="background:#f7f7f7">
+  <path d="
+    M 50 200
+    L 150 200
+    Q 200 100, 250 200
+    L 300 200
+    Q 350 300, 400 200
+    L 500 200
+    Q 550 120, 600 200
+    L 650 200
+  "
+    fill="none"
+    stroke="#2c7be5"
+    stroke-width="12"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+</svg>
