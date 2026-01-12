@@ -2,15 +2,14 @@
 const float EPS_SURF   = 1e-4;
 const int   SAMPLE_N   = 256;
 const int   BISECT_ITR = 12;
-const float TMAX       = 8.0;
+const float TMAX       = 15.0; // [模版]：最大距离 15.0
 
 // ---------------- helpers ----------------
 mat3 rotX(float a){ float c=cos(a), s=sin(a); return mat3(1,0,0, 0,c,-s, 0,s,c); }
 mat3 rotY(float a){ float c=cos(a), s=sin(a); return mat3(c,0,s, 0,1,0, -s,0,c); }
 mat3 rotZ(float a){ float c=cos(a), s=sin(a); return mat3(c,-s,0, s,c,0, 0,0,1); }
 
-// ---------------- params ----------------
-// <<< --- 添加了这里的占位符 --- >>>
+// ---------------- params (你的新数据 NUM_SQ = 9) ----------------
 const int NUM_SQ = 9;
 void getSQ(int i, out float params[11])
 {
@@ -102,7 +101,6 @@ void getSQ(int i, out float params[11])
 // <<< --------------------------- >>>
 
 // ---------------- implicit: G(p) = F(p)-1 ----------------
-// 用 pow，但做“硬夹”避免爆炸：q≤3，(x+y)≤1e6
 float G_local(vec3 X, float e1, float e2, vec3 a){
     e1 = max(e1,1e-6);
     e2 = max(e2,1e-6);
@@ -143,9 +141,8 @@ bool raySphere(vec3 ro, vec3 rd, vec3 c, float r, out float t0, out float t1){
     return t1 >= 0.0;
 }
 
-// ---------------- root finder on one object ----------------
+// ---------------- root finder (二分查找) ----------------
 bool intersectSuper(vec3 ro, vec3 rd, const float prm[11], out float tHit){
-    // bound sphere（保守）：r = max(a)*sqrt(3)
     vec3 center = vec3(prm[8],prm[9],prm[10]);
     float rBound = max(prm[2], max(prm[3], prm[4])) * 1.05 * sqrt(3.0);
 
@@ -155,7 +152,6 @@ bool intersectSuper(vec3 ro, vec3 rd, const float prm[11], out float tHit){
     t1 = min(t1, TMAX);
     if(t0 >= t1) return false;
 
-    // 粗采样找符号变化
     float prevT = t0;
     float prevG = G_world(ro + rd*t0, prm);
     bool found = false;
@@ -170,12 +166,10 @@ bool intersectSuper(vec3 ro, vec3 rd, const float prm[11], out float tHit){
     }
     if(!found) return false;
 
-    // 二分
     float aT = ta, bT = tb;
     float Ga = G_world(ro + rd*aT, prm);
     float Gb = G_world(ro + rd*bT, prm);
     if(Ga*Gb > 0.0){
-        // 轻微扩展一次
         float dt = (tb-ta)*0.1 + 1e-3;
         aT = max(t0, tb - dt); bT = min(t1, tb + dt);
         Ga = G_world(ro + rd*aT, prm);
@@ -192,7 +186,7 @@ bool intersectSuper(vec3 ro, vec3 rd, const float prm[11], out float tHit){
     return tHit>=0.0 && tHit<=TMAX;
 }
 
-// ---------------- normal via finite difference on G ----------------
+// ---------------- normal via finite difference ----------------
 vec3 normalAt(vec3 p, const float prm[11], float t){
     float h = clamp(0.0005*(1.0+0.2*t), 5e-5, 2e-3);
     vec3 e = vec3(h,0,0);
@@ -202,43 +196,62 @@ vec3 normalAt(vec3 p, const float prm[11], float t){
     return normalize(vec3(gx,gy,gz));
 }
 
-// ---------------- shading ----------------
+// ---------------- shading (模版：白色) ----------------
 vec3 shade(vec3 pos, vec3 n, vec3 v){
-    vec3 lightPos  = vec3(1.6, 2.2, -0.9);
+    // [模版] 光照位置
+    vec3 lightPos  = vec3(-2.0, 4.0, 3.0);
+    
     vec3 l = normalize(lightPos - pos);
     float ndl = max(dot(n,l),0.0);
     vec3 h = normalize(l+v);
-    float spec = pow(max(dot(n,h),0.0), 64.0);
-    vec3 base = vec3(0.05);
-    return base*(0.15 + 1.0*ndl) + 0.4*spec;
+    
+    // [模版] 高光
+    float spec = pow(max(dot(n,h),0.0), 32.0);
+    
+    // [模版] 颜色：白色
+    vec3 base = vec3(0.95);
+    
+    return base*(0.3 + 0.7*ndl) + 0.4*spec;
 }
 
 // ---------------- main ----------------
 void mainImage(out vec4 fragColor, in vec2 fragCoord){
-    // ===== Camera (fixed 3/4 view) =====
-    const float FOVY    = radians(45.0); // 45°更稳重；50°更广
-    const float PADDING = 1.2;           // 画面留边 (1.1~1.3)
-    const vec3  TARGET  = vec3(0.0);
-    const vec3  UP      = vec3(0.0,1.0,0.0);
+    // 1. 计算所有 SQ 的几何中心
+    vec3 sumPos = vec3(0.0);
+    float validCount = 0.0;
 
-    // 根据 FOV 计算距离，适配 [-1,1]^3 的半高 H=1
-    float dist = PADDING / tan(0.5*FOVY);
-    dist=dist*2.0;
-    // 选一个 3/4 方位，单位向量再乘 dist
-    vec3 camPos = normalize(vec3(0.8, 0.6, -1.0)) * dist;
+    for(int i = 0; i < NUM_SQ; i++) {
+        float prm[11]; 
+        getSQ(i, prm);
+        if(prm[2] > 0.001) { 
+            vec3 t = vec3(prm[8], prm[9], prm[10]);
+            sumPos += t;
+            validCount += 1.0;
+        }
+    }
+    vec3 center = (validCount > 0.0) ? (sumPos / validCount) : vec3(0.0);
 
-    // 构建基向量（右手）
+    // 2. 相机设置 (应用模版)
+    const float FOVY = radians(45.0);
+    vec3 TARGET = center; 
+    
+    // [模版]：相机拉远
+    float dist = (1.2 / tan(0.5 * FOVY)) * 5.0; 
+
+    // [模版]：角度陡峭俯视
+    vec3 camDir = normalize(vec3(0.0, 6.0, -1.0)); 
+    
+    vec3 camPos = TARGET + camDir * dist;
+    vec3 UP     = vec3(0.0, 1.0, 0.0);
+
     vec3 fw = normalize(TARGET - camPos);
     vec3 rt = normalize(cross(fw, UP));
     vec3 up = cross(rt, fw);
 
-    // 屏幕坐标归一化（按 iResolution.y）
-    vec2 q = (fragCoord - 0.5*iResolution.xy) / iResolution.y;
+    vec2 q = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
+    vec3 rd = normalize(q.x * rt + q.y * up + (1.0 / tan(0.5 * FOVY)) * fw);
 
-    // 主光线方向
-    vec3 rd = normalize(q.x*rt + q.y*up + (1.0/tan(0.5*FOVY))*fw);
-
-    // 寻找最近命中
+    // 3. 渲染循环
     float bestT = 1e9;
     int   bestI = -1;
 
@@ -256,13 +269,21 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
         vec3 pos = camPos + rd*bestT;
         vec3 n   = normalAt(pos, prm, bestT);
         vec3 v   = normalize(camPos - pos);
-        // 对单对象使用一个固定的颜色
-        vec3 baseColor = vec3(0.8, 0.8, 0.8);
-        col = baseColor * shade(pos, n, v);
+        
+        col = shade(pos, n, v);
     }else{
-        col = vec3(0.62, 0.78, 1.0); // sky
+        // [模版]：背景颜色蓝白渐变
+        float t = smoothstep(-0.5, 0.5, q.y);
+
+        // 顶部蓝色：你指定的新颜色 RGB(71, 170, 255)
+        vec3 topColor = vec3(71.0/255.0, 170.0/255.0, 255.0/255.0);
+        
+        // 底部白色
+        vec3 bottomColor = vec3(1.0);
+        
+        col = mix(bottomColor, topColor, t);
     }
 
-    col = pow(col, vec3(0.4545)); // gamma 2.2
+    col = pow(col, vec3(0.4545)); 
     fragColor = vec4(col,1.0);
 }
