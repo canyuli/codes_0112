@@ -1,4 +1,4 @@
-const int   MAX_STEPS  = 100;
+const int   MAX_STEPS  = 150;
 const float MAX_DIST   = 50.0;
 const float SURF_DIST  = 1e-3;
 
@@ -18,7 +18,7 @@ float raymarch(vec3 ro, vec3 rd) {
     for(int i=0; i<MAX_STEPS; i++) {
         vec3 p = ro + rd * dO;
         float dS = map(p);
-        dO += dS;
+        dO += dS * 0.8;
         if(dO > MAX_DIST || abs(dS) < SURF_DIST) break;
     }
     return dO;
