@@ -1,24 +1,28 @@
-const int   MAX_STEPS  = 150;
-const float MAX_DIST   = 50.0;
-const float SURF_DIST  = 1e-3;
+const int   MAX_STEPS   = 150;
+const float MAX_DIST    = 50.0;
+const float SURF_DIST   = 1e-3;
 
-float sdEllipsoid( vec3 p, vec3 r )
-{
-    float k0 = length(p/r);
-    float k1 = length(p/(r*r));
-    return k0*(k0-1.0)/k1;
+float sdSuperquadric(vec3 p, vec3 r, vec2 e) {
+    p = abs(p);
+    float p1 = pow(pow(p.x / r.x, 2.0 / e.y) + pow(p.y / r.y, 2.0 / e.y), e.y / e.x);
+    float p2 = pow(p1 + pow(p.z / r.z, 2.0 / e.x), e.x / 2.0);
+    return (p2 - 1.0) * min(min(r.x, r.y), r.z) * 0.5;
 }
 
 float map(vec3 p) {
-    vec3 radii = vec3(0.81, 0.44, 0.36);
-    return sdEllipsoid(p, radii);
+    vec3 radii = vec3(0.77, 0.38, 0.36);
+    float d1 = sdSuperquadric(p, radii, vec2(1.0, 1.0));
+    float d2 = sdSuperquadric(p, radii * 0.6, vec2(0.2, 0.2));
+    float d3 = sdSuperquadric(p, radii * 0.3, vec2(4.0, 4.0));
+    return min(d1, min(d2, d3));
 }
+
 float raymarch(vec3 ro, vec3 rd) {
     float dO = 0.0;
     for(int i=0; i<MAX_STEPS; i++) {
         vec3 p = ro + rd * dO;
         float dS = map(p);
-        dO += dS * 0.8;
+        dO += dS * 0.4; 
         if(dO > MAX_DIST || abs(dS) < SURF_DIST) break;
     }
     return dO;
@@ -33,6 +37,7 @@ vec3 getNormal(vec3 p) {
         map(p-e.yyx));
     return normalize(n);
 }
+
 vec3 shade(vec3 pos, vec3 n, vec3 v){
     vec3 lightPos  = vec3(1.6, 2.2, -0.9);
     
@@ -48,9 +53,9 @@ vec3 shade(vec3 pos, vec3 n, vec3 v){
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord){
-    const float FOVY    = radians(45.0); 
-    const vec3  TARGET  = vec3(0.0);
-    const vec3  UP      = vec3(0.0,1.0,0.0);
+    const float FOVY     = radians(45.0); 
+    const vec3  TARGET   = vec3(0.0);
+    const vec3  UP       = vec3(0.0,1.0,0.0);
 
     float dist = (1.2 / tan(0.5 * FOVY)) * 2.5; 
 

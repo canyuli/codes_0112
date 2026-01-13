@@ -2,14 +2,21 @@ const int   MAX_STEPS  = 150;
 const float MAX_DIST   = 50.0;
 const float SURF_DIST  = 1e-3;
 
-
-float sdSphere(vec3 p, float r) {
-    return length(p) - r;
+float sdSuperquadric(vec3 p, vec3 r, vec2 e) {
+    p = abs(p);
+    float p1 = pow(p.x / r.x, 2.0 / e.y);
+    float p2 = pow(p.y / r.y, 2.0 / e.y);
+    float tmp = pow(p1 + p2, e.y / e.x);
+    float p3 = pow(p.z / r.z, 2.0 / e.x);
+    float v = tmp + p3;
+    float d = (pow(v, e.x * 0.5) - 1.0) * min(min(r.x, r.y), r.z);
+    return d;
 }
 
 float map(vec3 p) {
-    float radius = 0.82;
-    return sdSphere(p, radius);
+    vec3 dims = vec3(0.82); 
+    vec2 e = vec2(1.0, 1.0); 
+    return sdSuperquadric(p, dims, e);
 }
 
 float raymarch(vec3 ro, vec3 rd) {
@@ -17,7 +24,7 @@ float raymarch(vec3 ro, vec3 rd) {
     for(int i=0; i<MAX_STEPS; i++) {
         vec3 p = ro + rd * dO;
         float dS = map(p);
-        dO += dS * 0.8;
+        dO += dS * 0.6; 
         if(dO > MAX_DIST || abs(dS) < SURF_DIST) break;
     }
     return dO;
@@ -35,16 +42,11 @@ vec3 getNormal(vec3 p) {
 
 vec3 shade(vec3 pos, vec3 n, vec3 v){
     vec3 lightPos = vec3(2.9, 25.2, -8.3);
-    
     vec3 l = normalize(lightPos - pos);
-    
     float ndl = max(dot(n,l), 0.0);
     vec3 h = normalize(l+v);
-    
     float spec = pow(max(dot(n,h), 0.0), 64.0);
-    
     vec3 base = vec3(0.05); 
-    
     return base * (0.15 + 1.0 * ndl) + 0.4 * spec;
 }
 
@@ -72,7 +74,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
         vec3 pos = camPos + rd * d;
         vec3 n   = getNormal(pos);
         vec3 v   = normalize(camPos - pos);
-        
         vec3 baseColor = vec3(0.8, 0.8, 0.8);
         col = baseColor * shade(pos, n, v);
     } else {
