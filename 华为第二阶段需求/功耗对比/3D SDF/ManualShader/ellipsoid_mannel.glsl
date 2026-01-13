@@ -13,8 +13,7 @@ float map(vec3 p) {
     vec3 radii = vec3(0.77, 0.38, 0.36);
     float d1 = sdSuperquadric(p, radii, vec2(1.0, 1.0));
     float d2 = sdSuperquadric(p, radii * 0.6, vec2(0.2, 0.2));
-    float d3 = sdSuperquadric(p, radii * 0.3, vec2(4.0, 4.0));
-    return min(d1, min(d2, d3));
+    return min(d1,d2);
 }
 
 float raymarch(vec3 ro, vec3 rd) {
@@ -22,7 +21,7 @@ float raymarch(vec3 ro, vec3 rd) {
     for(int i=0; i<MAX_STEPS; i++) {
         vec3 p = ro + rd * dO;
         float dS = map(p);
-        dO += dS * 0.4; 
+        dO += dS; 
         if(dO > MAX_DIST || abs(dS) < SURF_DIST) break;
     }
     return dO;
