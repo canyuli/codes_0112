@@ -14,7 +14,7 @@ float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
 
 float map(vec3 p) {
     float radius = 0.4;
-    float height = 1.85;
+    float height = 1.65;
     vec3 posA = vec3(0.0, -height*0.5, 0.0); 
     vec3 posB = vec3(0.0,  height*0.5, 0.0);
     
